@@ -342,4 +342,60 @@
                                         </button>
                                         <button 
                                             onClick={downloadCode}
-                                            className
+                                            className="px-3 py-1 rounded text-xs font-medium flex items-center gap-2 bg-green-700 text-white hover:bg-green-600 border border-green-600 transition"
+                                        >
+                                            <IconDownload size={14} /> Save HTML
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="flex-grow relative overflow-hidden">
+                            
+                            {/* Empty State */}
+                            {!generatedCode && !streamingCode && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700 select-none">
+                                    <IconLayout />
+                                    <p className="mt-4 text-sm font-medium">Preview area</p>
+                                </div>
+                            )}
+
+                            {/* PREVIEW MODE */}
+                            <div className={`w-full h-full ${viewMode === 'preview' ? 'block' : 'hidden'}`}>
+                                {(generatedCode || streamingCode) ? (
+                                    <iframe 
+                                        srcDoc={isStreaming ? streamingCode : generatedCode} 
+                                        title="Preview"
+                                        className="w-full h-full bg-white border-none"
+                                        sandbox="allow-scripts allow-modals allow-forms allow-popups"
+                                    />
+                                ) : null}
+                            </div>
+
+                            {/* CODE MODE */}
+                            <div className={`w-full h-full bg-[#0d1117] overflow-auto ${viewMode === 'code' ? 'block' : 'hidden'}`}>
+                                <pre className="p-4 text-xs font-mono leading-relaxed">
+                                    <code className="text-green-400 block whitespace-pre-wrap">
+                                        {isStreaming ? (
+                                            <>
+                                                {streamingCode}
+                                                <span className="typing-cursor inline-block w-2 h-4 bg-green-400 ml-1 align-middle"></span>
+                                            </>
+                                        ) : generatedCode}
+                                    </code>
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
