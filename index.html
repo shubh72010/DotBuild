@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Website Builder (Streaming + Chat)</title>
+    <title>AI Website Builder (Refs & Chat)</title>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -12,7 +12,11 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set worker script for PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
 
     <style>
         body { background-color: #0f172a; color: white; }
@@ -41,6 +45,24 @@
         const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
         const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>;
         const IconLayout = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>;
+        const IconPaperclip = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>;
+        const IconFileText = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
+        const IconX = () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+
+        // --- PDF EXTRACTION ---
+        const extractTextFromPdf = async (file) => {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = "";
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+            }
+            return fullText;
+        };
 
         // --- STREAMING API HANDLER ---
         const streamWebsite = async (apiKey, model, messages, onChunk) => {
@@ -49,13 +71,13 @@
                 Task: Generate or modify a single-file HTML website.
                 
                 Rules:
-                1. Output ONLY valid HTML code. No markdown code blocks (no \`\`\`html).
+                1. Output ONLY valid HTML code. No markdown code blocks.
                 2. Include all CSS in <style> and JS in <script> tags.
-                3. If modifying, return the FULL updated HTML code, not just the diff.
-                4. Use Tailwind CSS via CDN if helpful.
+                3. If modifying, return the FULL updated HTML code.
+                4. Use Tailwind CSS via CDN.
+                5. If Reference Materials are provided, use their content/style to guide your design.
             `;
 
-            // Prepare messages for the API
             const apiMessages = [
                 { role: "system", content: systemPrompt },
                 ...messages
@@ -72,7 +94,7 @@
                 body: JSON.stringify({
                     model: model,
                     messages: apiMessages,
-                    stream: true // ENABLE STREAMING
+                    stream: true 
                 })
             });
 
@@ -81,7 +103,6 @@
                 throw new Error(err.error?.message || "Failed to call API");
             }
 
-            // Reader for SSE (Server Sent Events)
             const reader = response.body.getReader();
             const decoder = new TextDecoder("utf-8");
             
@@ -100,9 +121,7 @@
                             const json = JSON.parse(jsonStr);
                             const content = json.choices[0]?.delta?.content || "";
                             if (content) onChunk(content);
-                        } catch (e) {
-                            console.error("Error parsing JSON chunk", e);
-                        }
+                        } catch (e) {}
                     }
                 }
             }
@@ -116,28 +135,80 @@
             const [customModel, setCustomModel] = useState('');
             
             // Core Logic
-            const [messages, setMessages] = useState([]); // Chat history
-            const [prompt, setPrompt] = useState(''); // Current input
+            const [messages, setMessages] = useState([]); 
+            const [prompt, setPrompt] = useState(''); 
             const [generatedCode, setGeneratedCode] = useState('');
-            const [streamingCode, setStreamingCode] = useState(''); // Buffer for typing effect
+            const [streamingCode, setStreamingCode] = useState(''); 
             const [isStreaming, setIsStreaming] = useState(false);
             
+            // References
+            const [references, setReferences] = useState([]); // Array of { name, content }
+            const [isUploading, setIsUploading] = useState(false);
+            const fileInputRef = useRef(null);
+
             // UI State
             const [error, setError] = useState('');
             const [viewMode, setViewMode] = useState('preview');
             const [copied, setCopied] = useState(false);
-            
-            // Refs for scrolling
             const chatEndRef = useRef(null);
 
             useEffect(() => {
                 if(apiKey) localStorage.setItem('openrouter_key', apiKey);
             }, [apiKey]);
 
-            // Auto-scroll chat
             useEffect(() => {
                 chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }, [messages]);
+            }, [messages, isUploading]);
+
+            // --- FILE UPLOAD HANDLER ---
+            const handleFileUpload = async (e) => {
+                const files = Array.from(e.target.files);
+                if (files.length === 0) return;
+
+                setIsUploading(true);
+                setError('');
+
+                try {
+                    const newRefs = [];
+                    for (const file of files) {
+                        let text = "";
+                        
+                        if (file.type === "application/pdf") {
+                            text = await extractTextFromPdf(file);
+                        } else if (file.type.startsWith("text/") || file.name.endsWith(".js") || file.name.endsWith(".json") || file.name.endsWith(".md")) {
+                            text = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => resolve(ev.target.result);
+                                reader.readAsText(file);
+                            });
+                        } else {
+                            // Try reading as text anyway for code files without mime types
+                            text = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => resolve(ev.target.result);
+                                reader.readAsText(file);
+                            });
+                        }
+
+                        // Truncate overly large files to save tokens (approx 20k chars)
+                        if (text.length > 20000) {
+                            text = text.substring(0, 20000) + "\n\n[...File Truncated...]";
+                        }
+
+                        newRefs.push({ name: file.name, content: text });
+                    }
+                    setReferences(prev => [...prev, ...newRefs]);
+                } catch (err) {
+                    setError("Failed to read file: " + err.message);
+                } finally {
+                    setIsUploading(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                }
+            };
+
+            const removeReference = (index) => {
+                setReferences(prev => prev.filter((_, i) => i !== index));
+            };
 
             const handleSend = async () => {
                 if (!apiKey) return setError('Please enter API Key.');
@@ -148,42 +219,52 @@
 
                 setError('');
                 setIsStreaming(true);
-                setViewMode('preview'); // Switch to preview to see it update (if we decide to update iframe live)
+                setViewMode('preview');
                 
-                // Add user message to history
-                const newHistory = [...messages, { role: "user", content: prompt }];
-                setMessages(newHistory);
-                setPrompt(''); // Clear input
+                // Construct the full prompt including references
+                let combinedContent = prompt;
+                if (references.length > 0) {
+                    combinedContent += "\n\n=== REFERENCE MATERIALS ===\n";
+                    references.forEach(ref => {
+                        combinedContent += `\n--- File: ${ref.name} ---\n${ref.content}\n--- End File ---\n`;
+                    });
+                    combinedContent += "\n=== END REFERENCES ===\nUse these references to guide the structure/content.";
+                }
+
+                const newHistory = [...messages, { role: "user", content: combinedContent }];
+                
+                // We show the clean prompt in UI, but send the combined one to AI
+                const uiHistory = [...messages, { role: "user", content: prompt + (references.length ? ` (Attached ${references.length} files)` : "") }];
+                
+                setMessages(uiHistory);
+                setPrompt(''); 
+                setReferences([]); // Clear refs after sending? Or keep them? Let's clear to avoid token bloat on next turn.
 
                 let fullResponse = "";
-                setStreamingCode(""); // Reset streaming buffer
+                setStreamingCode(""); 
 
                 try {
-                    // Switch to Code View if this is a modification so user sees typing
                     if (generatedCode) setViewMode('code');
 
                     await streamWebsite(apiKey, finalModel, newHistory, (chunk) => {
                         fullResponse += chunk;
-                        // Strip potential markdown blocks if AI forgets instructions
                         const cleanChunk = fullResponse.replace(/```html/g, "").replace(/```/g, "");
                         setStreamingCode(cleanChunk);
                     });
 
-                    // Done streaming
                     let finalCode = fullResponse.replace(/```html/g, "").replace(/```/g, "");
                     setGeneratedCode(finalCode);
-                    
-                    // Add AI response to history so context is remembered
                     setMessages(prev => [...prev, { role: "assistant", content: finalCode }]);
 
                 } catch (err) {
                     setError(err.message);
                 } finally {
                     setIsStreaming(false);
-                    setViewMode('preview'); // Switch back to preview when done
+                    setViewMode('preview');
                 }
             };
 
+            // Helpers
             const copyToClipboard = () => {
                 navigator.clipboard.writeText(generatedCode);
                 setCopied(true);
@@ -192,16 +273,12 @@
 
             const downloadCode = () => {
                 const blob = new Blob([generatedCode], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = URL.createObjectURL(blob);
                 a.download = 'website.html';
-                document.body.appendChild(a);
                 a.click();
-                document.body.removeChild(a);
             };
 
-            // Key press handler for chat
             const handleKeyPress = (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -212,7 +289,7 @@
             return (
                 <div className="min-h-screen flex flex-col md:flex-row font-sans text-slate-100">
                     
-                    {/* --- LEFT PANEL: Settings & Chat --- */}
+                    {/* --- LEFT PANEL --- */}
                     <div className="w-full md:w-1/3 border-r border-slate-700 bg-slate-900 h-screen flex flex-col">
                         
                         {/* Header & Settings */}
@@ -220,20 +297,16 @@
                             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-3">
                                 AI Web Builder
                             </h1>
-                            
                             <div className="flex flex-col gap-3">
                                 <input 
-                                    type="password" 
-                                    placeholder="OpenRouter Key"
+                                    type="password" placeholder="OpenRouter Key"
                                     className="bg-slate-800 border border-slate-700 rounded px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 outline-none w-full"
-                                    value={apiKey}
-                                    onChange={(e) => setApiKey(e.target.value)}
+                                    value={apiKey} onChange={(e) => setApiKey(e.target.value)}
                                 />
                                 <div className="flex gap-2">
                                     <select 
                                         className="bg-slate-800 border border-slate-700 rounded px-2 py-2 text-xs flex-grow outline-none"
-                                        value={modelPreset}
-                                        onChange={(e) => setModelPreset(e.target.value)}
+                                        value={modelPreset} onChange={(e) => setModelPreset(e.target.value)}
                                     >
                                         <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
                                         <option value="openai/gpt-4o">GPT-4o</option>
@@ -241,35 +314,22 @@
                                         <option value="custom">Custom Model...</option>
                                     </select>
                                     {modelPreset === 'custom' && (
-                                        <input 
-                                            placeholder="Model ID" 
-                                            className="bg-slate-800 border border-slate-700 rounded px-2 text-xs w-24"
-                                            value={customModel}
-                                            onChange={(e) => setCustomModel(e.target.value)}
+                                        <input placeholder="Model ID" className="bg-slate-800 border border-slate-700 rounded px-2 text-xs w-24"
+                                            value={customModel} onChange={(e) => setCustomModel(e.target.value)}
                                         />
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Chat History Area */}
+                        {/* Chat History */}
                         <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                            {messages.length === 0 && (
-                                <div className="text-center text-slate-500 mt-10 text-sm">
-                                    <p>Enter your idea below to start building.</p>
-                                </div>
-                            )}
+                            {messages.length === 0 && <div className="text-center text-slate-500 mt-10 text-sm">Upload a reference or describe your idea.</div>}
                             
                             {messages.map((msg, idx) => (
                                 <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                                     <div className={`px-4 py-2 rounded-lg max-w-[90%] text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
-                                        {msg.role === 'user' ? (
-                                            msg.content
-                                        ) : (
-                                            <span className="italic flex items-center gap-1">
-                                                <IconCheck size={12}/> Code Generated
-                                            </span>
-                                        )}
+                                        {msg.role === 'user' ? msg.content : <span className="italic flex items-center gap-1"><IconCheck size={12}/> Code Generated</span>}
                                     </div>
                                 </div>
                             ))}
@@ -280,28 +340,59 @@
                                     </div>
                                 </div>
                             )}
-                            {error && (
-                                <div className="bg-red-900/30 border border-red-800 text-red-200 p-3 rounded text-xs">
-                                    Error: {error}
-                                </div>
-                            )}
+                            {error && <div className="bg-red-900/30 border border-red-800 text-red-200 p-3 rounded text-xs">Error: {error}</div>}
                             <div ref={chatEndRef} />
                         </div>
 
-                        {/* Chat Input Area */}
+                        {/* References Section */}
+                        {references.length > 0 && (
+                            <div className="px-4 py-2 border-t border-slate-800 bg-slate-900/50">
+                                <p className="text-xs text-slate-400 font-semibold mb-2 uppercase">Attached References</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {references.map((ref, idx) => (
+                                        <div key={idx} className="bg-slate-700 text-xs px-2 py-1 rounded flex items-center gap-2 text-slate-200 group">
+                                            <IconFileText />
+                                            <span className="max-w-[100px] truncate">{ref.name}</span>
+                                            <button onClick={() => removeReference(idx)} className="hover:text-red-400"><IconX size={10} /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Input Area */}
                         <div className="p-4 border-t border-slate-800 bg-slate-900">
                             <div className="relative">
                                 <textarea 
                                     className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-10 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white resize-none"
-                                    placeholder={messages.length === 0 ? "Describe your website..." : "Describe changes (e.g. 'Make the button red')..."}
+                                    placeholder="Describe website or changes..."
                                     rows="3"
                                     value={prompt}
                                     onChange={(e) => setPrompt(e.target.value)}
                                     onKeyDown={handleKeyPress}
                                 />
+                                
+                                <div className="absolute bottom-2 left-2">
+                                    <input 
+                                        type="file" 
+                                        multiple 
+                                        ref={fileInputRef}
+                                        className="hidden" 
+                                        onChange={handleFileUpload}
+                                        accept=".txt,.md,.js,.py,.html,.css,.json,.pdf"
+                                    />
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="p-1.5 text-slate-400 hover:text-white transition rounded hover:bg-slate-700"
+                                        title="Attach file (PDF, Text, Code)"
+                                    >
+                                        {isUploading ? <IconLoader className="animate-spin" size={16}/> : <IconPaperclip size={16} />}
+                                    </button>
+                                </div>
+
                                 <button 
                                     onClick={handleSend}
-                                    disabled={isStreaming || !prompt}
+                                    disabled={isStreaming || (!prompt && references.length === 0)}
                                     className="absolute bottom-2 right-2 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md disabled:opacity-50 transition"
                                 >
                                     {isStreaming ? <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div> : <IconSend size={16} />}
@@ -310,40 +401,24 @@
                         </div>
                     </div>
 
-                    {/* --- RIGHT PANEL: Preview/Code --- */}
+                    {/* --- RIGHT PANEL --- */}
                     <div className="w-full md:w-2/3 bg-slate-950 flex flex-col h-screen relative">
-                        
-                        {/* Toolbar */}
                         <div className="h-14 border-b border-slate-800 flex items-center justify-between px-4 bg-slate-900 shrink-0">
                             <div className="flex bg-slate-800 rounded p-1">
-                                <button 
-                                    onClick={() => setViewMode('preview')}
-                                    className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-2 transition ${viewMode === 'preview' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                                >
+                                <button onClick={() => setViewMode('preview')} className={`px-3 py-1 rounded text-xs font-medium flex gap-2 ${viewMode === 'preview' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                                     <IconEye size={14} /> Preview
                                 </button>
-                                <button 
-                                    onClick={() => setViewMode('code')}
-                                    className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-2 transition ${viewMode === 'code' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                                >
+                                <button onClick={() => setViewMode('code')} className={`px-3 py-1 rounded text-xs font-medium flex gap-2 ${viewMode === 'code' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                                     <IconCode size={14} /> Code
                                 </button>
                             </div>
-
                             <div className="flex gap-2">
                                 {(generatedCode || streamingCode) && (
                                     <>
-                                        <button 
-                                            onClick={copyToClipboard}
-                                            className="px-3 py-1 rounded text-xs font-medium flex items-center gap-2 bg-slate-700 text-white hover:bg-slate-600 border border-slate-600 transition"
-                                        >
-                                            {copied ? <IconCheck size={14} /> : <IconCopy size={14} />} 
-                                            {copied ? "Copied" : "Copy"}
+                                        <button onClick={copyToClipboard} className="px-3 py-1 rounded text-xs font-medium flex gap-2 bg-slate-700 text-white hover:bg-slate-600 border border-slate-600">
+                                            {copied ? <IconCheck size={14} /> : <IconCopy size={14} />} {copied ? "Copied" : "Copy"}
                                         </button>
-                                        <button 
-                                            onClick={downloadCode}
-                                            className="px-3 py-1 rounded text-xs font-medium flex items-center gap-2 bg-green-700 text-white hover:bg-green-600 border border-green-600 transition"
-                                        >
+                                        <button onClick={downloadCode} className="px-3 py-1 rounded text-xs font-medium flex gap-2 bg-green-700 text-white hover:bg-green-600 border border-green-600">
                                             <IconDownload size={14} /> Save HTML
                                         </button>
                                     </>
@@ -351,49 +426,26 @@
                             </div>
                         </div>
 
-                        {/* Content Area */}
                         <div className="flex-grow relative overflow-hidden">
-                            
-                            {/* Empty State */}
                             {!generatedCode && !streamingCode && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700 select-none">
                                     <IconLayout />
                                     <p className="mt-4 text-sm font-medium">Preview area</p>
                                 </div>
                             )}
-
-                            {/* PREVIEW MODE */}
                             <div className={`w-full h-full ${viewMode === 'preview' ? 'block' : 'hidden'}`}>
-                                {(generatedCode || streamingCode) ? (
-                                    <iframe 
-                                        srcDoc={isStreaming ? streamingCode : generatedCode} 
-                                        title="Preview"
-                                        className="w-full h-full bg-white border-none"
-                                        sandbox="allow-scripts allow-modals allow-forms allow-popups"
-                                    />
-                                ) : null}
+                                {(generatedCode || streamingCode) && (
+                                    <iframe srcDoc={isStreaming ? streamingCode : generatedCode} title="Preview" className="w-full h-full bg-white border-none" sandbox="allow-scripts allow-modals allow-forms allow-popups" />
+                                )}
                             </div>
-
-                            {/* CODE MODE */}
                             <div className={`w-full h-full bg-[#0d1117] overflow-auto ${viewMode === 'code' ? 'block' : 'hidden'}`}>
-                                <pre className="p-4 text-xs font-mono leading-relaxed">
-                                    <code className="text-green-400 block whitespace-pre-wrap">
-                                        {isStreaming ? (
-                                            <>
-                                                {streamingCode}
-                                                <span className="typing-cursor inline-block w-2 h-4 bg-green-400 ml-1 align-middle"></span>
-                                            </>
-                                        ) : generatedCode}
-                                    </code>
-                                </pre>
+                                <pre className="p-4 text-xs font-mono leading-relaxed"><code className="text-green-400 block whitespace-pre-wrap">{isStreaming ? <>{streamingCode}<span className="typing-cursor inline-block w-2 h-4 bg-green-400 ml-1 align-middle"></span></> : generatedCode}</code></pre>
                             </div>
                         </div>
                     </div>
-
                 </div>
             );
         }
-
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
