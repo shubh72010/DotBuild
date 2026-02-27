@@ -3,451 +3,1181 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Website Builder (Refs & Chat)</title>
+    <title>DotBuild — AI Web Builder</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
     <script>
-        // Set worker script for PDF.js
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
 
     <style>
-        body { background-color: #0f172a; color: white; }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        .typing-cursor::after { content: '▋'; animation: blink 1s step-start infinite; }
-        @keyframes blink { 50% { opacity: 0; } }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #0c0c10;
+            --bg1:      #111117;
+            --bg2:      #18181f;
+            --bg3:      #1f1f2a;
+            --border:   rgba(255,255,255,0.07);
+            --border2:  rgba(255,255,255,0.12);
+            --text:     #e8e8f0;
+            --text2:    #8888a0;
+            --text3:    #50505f;
+            --accent:   #7c6af7;
+            --accent2:  #a78bf6;
+            --green:    #3ecf8e;
+            --red:      #f06e6e;
+            --amber:    #f0b96e;
+            --sidebar-width: 360px;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Geist', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 900px) {
+            :root { --sidebar-width: 320px; }
+        }
+        @media (max-width: 700px) {
+            :root { --sidebar-width: 100%; }
+            .right-panel { display: none !important; }
+            .mobile-show { display: flex !important; }
+        }
+        @media (min-width: 701px) {
+            .mobile-show { display: none !important; }
+        }
+
+        /* --- SCROLLBAR --- */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+        /* --- INPUTS --- */
+        input, textarea, select {
+            font-family: 'Geist', sans-serif;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(124,106,247,0.12);
+        }
+        input::placeholder, textarea::placeholder { color: var(--text3); }
+        option { background: var(--bg2); }
+
+        /* --- CODE PANEL --- */
+        .code-panel {
+            background: #0d0d14;
+            position: relative;
+        }
+        .code-panel pre {
+            font-family: 'Geist Mono', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            padding: 24px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .code-panel .hljs { background: transparent !important; }
+
+        .line-numbers-col {
+            width: 48px;
+            min-width: 48px;
+            background: rgba(0,0,0,0.2);
+            border-right: 1px solid var(--border);
+            padding: 24px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .line-num {
+            font-family: 'Geist Mono', monospace;
+            font-size: 12px;
+            color: var(--text3);
+            padding: 0 10px;
+            line-height: 1.7;
+            user-select: none;
+        }
+
+        /* --- TOOLBAR PILLS --- */
+        .tab-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            background: transparent;
+            color: var(--text2);
+        }
+        .tab-pill:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+        .tab-pill.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 12px rgba(124,106,247,0.35);
+        }
+
+        /* --- ACTION BUTTONS --- */
+        .act-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            color: var(--text2);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .act-btn:hover { border-color: var(--border2); color: var(--text); background: var(--bg3); }
+        .act-btn.green { background: rgba(62,207,142,0.12); border-color: rgba(62,207,142,0.25); color: var(--green); }
+        .act-btn.green:hover { background: rgba(62,207,142,0.2); }
+        .act-btn.purple { background: rgba(124,106,247,0.12); border-color: rgba(124,106,247,0.25); color: var(--accent2); }
+        .act-btn.purple:hover { background: rgba(124,106,247,0.2); }
+
+        /* --- SEND BUTTON --- */
+        .send-btn {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #7c6af7, #9b5ef7);
+            color: white;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.15s;
+            box-shadow: 0 4px 15px rgba(124,106,247,0.3);
+        }
+        .send-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,106,247,0.45); }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* --- CHAT BUBBLES --- */
+        .bubble-user {
+            background: linear-gradient(135deg, #7c6af7, #9b5ef7);
+            color: white;
+            border-radius: 16px 16px 4px 16px;
+            padding: 10px 14px;
+            font-size: 13.5px;
+            max-width: 88%;
+            align-self: flex-end;
+            word-break: break-word;
+        }
+        .bubble-ai {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 16px 16px 16px 4px;
+            padding: 10px 14px;
+            font-size: 13.5px;
+            max-width: 88%;
+            align-self: flex-start;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* --- TAG CHIP --- */
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 11.5px;
+            color: var(--text2);
+        }
+        .chip button { background: none; border: none; color: var(--text3); cursor: pointer; padding: 0; display: flex; }
+        .chip button:hover { color: var(--red); }
+
+        /* --- LIMIT BAR --- */
+        .limit-bar {
+            height: 3px;
+            background: var(--bg3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .limit-bar-fill {
+            height: 100%;
+            transition: width 0.3s, background 0.3s;
+            border-radius: 2px;
+        }
+
+        /* --- STATUS DOT --- */
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+        .status-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+        /* --- EMPTY STATE --- */
+        .empty-canvas {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 12px;
+            background: 
+                radial-gradient(ellipse at 30% 20%, rgba(124,106,247,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(62,207,142,0.04) 0%, transparent 50%),
+                var(--bg);
+        }
+        .empty-grid {
+            position: absolute; inset: 0;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+        .empty-badge {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--bg2);
+            border: 1px solid var(--border2);
+            border-radius: 12px;
+            padding: 10px 18px;
+            font-size: 13px;
+            color: var(--text2);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .empty-badge:hover { border-color: var(--accent); color: var(--accent2); background: rgba(124,106,247,0.08); }
+
+        /* --- MODAL --- */
+        .modal-bg {
+            position: fixed; inset: 0;
+            background: rgba(5,5,10,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal {
+            background: var(--bg1);
+            border: 1px solid var(--border2);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+            animation: modalIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.94) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* --- COMMAND PALETTE --- */
+        .cmd-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-size: 15px;
+            flex: 1;
+        }
+        .cmd-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.1s;
+            color: var(--text2);
+        }
+        .cmd-item:hover, .cmd-item.selected {
+            background: rgba(124,106,247,0.15);
+            color: var(--text);
+        }
+        .cmd-item kbd {
+            margin-left: auto;
+            font-size: 11px;
+            padding: 3px 6px;
+            background: var(--bg3);
+            border-radius: 4px;
+            color: var(--text3);
+        }
+
+        /* --- TEMPLATE CARD --- */
+        .tpl-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: left;
+        }
+        .tpl-card:hover {
+            border-color: var(--accent);
+            background: rgba(124,106,247,0.08);
+            transform: translateY(-2px);
+        }
+
+        /* --- SETTINGS ROW --- */
+        .settings-row {
+            display: flex; flex-direction: column;
+            gap: 5px;
+        }
+        .settings-row label {
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text3);
+        }
+        .settings-row input, .settings-row select, .settings-row textarea {
+            border-radius: 9px;
+            padding: 8px 12px;
+            font-size: 13px;
+            width: 100%;
+        }
+
+        /* --- SPIN --- */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 0.8s linear infinite; }
+
+        /* --- BRAND --- */
+        .brand-icon {
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, #7c6af7 0%, #5b4ec9 100%);
+            border-radius: 9px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 14px rgba(124,106,247,0.4);
+        }
+
+        /* --- PREVIEW TOOLBAR --- */
+        .preview-url-bar {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-family: 'Geist Mono', monospace;
+            color: var(--text3);
+            flex: 1;
+            max-width: 300px;
+            text-align: center;
+        }
+
+        /* --- MINI ICON BTN --- */
+        .icon-btn {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            color: var(--text2);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+        }
+        .icon-btn:hover { border-color: var(--border2); color: var(--text); background: var(--bg3); }
+
+        /* --- CODE FILE HEADER --- */
+        .code-file-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.25);
+            border-bottom: 1px solid var(--border);
+            font-family: 'Geist Mono', monospace;
+            font-size: 12px;
+            color: var(--text2);
+        }
+        .code-file-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+        }
+
+        .project-item {
+            display: flex; align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            transition: all 0.15s;
+        }
+        .project-item:hover { border-color: var(--border2); }
+
+        select { -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2350505f' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+
+        /* --- LAYOUT --- */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: var(--sidebar-width);
+            display: flex;
+            flex-direction: column;
+            background: var(--bg1);
+            border-right: 1px solid var(--border);
+            flex-shrink: 0;
+            min-width: 300px;
+        }
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
     </style>
 </head>
 <body>
+<div id="root"></div>
 
-    <div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+// === CONFIG ===
+const MODEL_LIMITS = {
+    'anthropic/claude-3.5-sonnet': { context: 800000, name: 'Claude 3.5 Sonnet' },
+    'anthropic/claude-3-haiku': { context: 200000, name: 'Claude 3 Haiku' },
+    'openai/gpt-4o': { context: 512000, name: 'GPT-4o' },
+    'openai/gpt-4o-mini': { context: 512000, name: 'GPT-4o Mini' },
+    'google/gemini-pro-1.5': { context: 4000000, name: 'Gemini Pro 1.5' },
+    'custom': { context: 128000, name: 'Custom Model' },
+};
 
-        // --- ICONS ---
-        const IconPlay = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
-        const IconCode = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>;
-        const IconEye = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
-        const IconLoader = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>;
-        const IconDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
-        const IconCopy = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>;
-        const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
-        const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>;
-        const IconLayout = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>;
-        const IconPaperclip = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>;
-        const IconFileText = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
-        const IconX = () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+const DEFAULT_SYSTEM_PROMPT = `You are an elite frontend developer. Generate complete, beautiful, single-file HTML websites using Tailwind CSS CDN. Output ONLY valid HTML, no markdown fences, no explanation.`;
 
-        // --- PDF EXTRACTION ---
-        const extractTextFromPdf = async (file) => {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let fullText = "";
-            
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(" ");
-                fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+const TEMPLATES = [
+    { id: 'landing', icon: '🚀', name: 'Landing Page', desc: 'Hero, features, CTA sections', prompt: 'Create a modern SaaS landing page with a bold hero, feature grid, social proof section, pricing table, and footer. Use Tailwind CSS with a dark theme and purple accents.' },
+    { id: 'dashboard', icon: '📊', name: 'Dashboard', desc: 'Analytics with charts & tables', prompt: 'Create an analytics dashboard with sidebar nav, KPI stat cards, a line chart area (using CSS/SVG), data table with sorting indicators, and notification bell. Dark theme, Tailwind CSS.' },
+    { id: 'blog', icon: '✍️', name: 'Blog', desc: 'Editorial layout with posts', prompt: 'Create a minimal editorial blog with a sticky header, featured article hero, 3-column post grid, category tags, and newsletter signup. Clean white theme with Tailwind CSS.' },
+    { id: 'portfolio', icon: '🎨', name: 'Portfolio', desc: 'Showcase projects & skills', prompt: 'Create a creative portfolio page with animated hero text, project cards with hover effects, skills timeline, and contact form. Bold dark design with Tailwind CSS.' },
+    { id: 'ecommerce', icon: '🛍️', name: 'E-commerce', desc: 'Product listings & cart', prompt: 'Create a modern e-commerce page with a sticky header, search bar, filter sidebar, product grid with image hover, add-to-cart buttons, and mini cart. Tailwind CSS.' },
+    { id: 'saas', icon: '⚡', name: 'SaaS App', desc: 'App shell with auth & nav', prompt: 'Create a SaaS application shell with a top nav, sidebar with icons and labels, main content area with cards, user avatar menu, and command palette (Cmd+K). Tailwind CSS.' },
+];
+
+// === SVG ICONS ===
+const I = {
+    logo: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="white"/>
+        </svg>
+    ),
+    send: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+    spin: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>,
+    code: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
+    eye: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+    dl: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+    copy: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+    check: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>,
+    settings: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>,
+    folder: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
+    grid: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+    attach: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,
+    x: () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+    file: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+    img: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
+    trash: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+    alert: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+    wrap: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
+    stars: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#sg)" strokeWidth="1.5"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#7c6af7"/><stop offset="100%" stopColor="#3ecf8e"/></linearGradient></defs><path d="M12 3l2 5h5l-4 3 1.5 5L12 13l-4.5 3 1.5-5L5 8h5z"/></svg>,
+    layout: () => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>,
+    save: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+    zip: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>,
+    cmd: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>,
+    search: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+};
+
+// === UTILS ===
+const extractTextFromPdf = async (file) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        fullText += `--- Page ${i} ---\n${textContent.items.map(item => item.str).join(" ")}\n\n`;
+    }
+    return fullText;
+};
+
+const imageToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+});
+
+const calculateAdaptiveLimit = (model, historySize = 0) => {
+    const modelInfo = MODEL_LIMITS[model] || { context: 128000 };
+    // Use 35% of context for references, reserve rest for response + history
+    const available = Math.floor(modelInfo.context * 0.35);
+    return Math.max(available - historySize, 5000);
+};
+
+const getLimitColor = (used, max) => {
+    const ratio = used / max;
+    if (ratio >= 0.95) return 'var(--red)';
+    if (ratio >= 0.80) return 'var(--amber)';
+    return 'var(--green)';
+};
+
+const streamWebsite = async (apiKey, model, messages, onChunk, systemPrompt) => {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": window.location.href,
+            "X-Title": "DotBuild AI Web Builder",
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, ...messages],
+            stream: true
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || `API Error (${response.status})`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        for (const line of chunk.split("\n")) {
+            if (line.startsWith("data: ")) {
+                const jsonStr = line.slice(6);
+                if (jsonStr === "[DONE]") return;
+                try {
+                    const json = JSON.parse(jsonStr);
+                    const content = json.choices[0]?.delta?.content || "";
+                    if (content) onChunk(content);
+                } catch (e) {}
             }
-            return fullText;
+        }
+    }
+};
+
+const getLineCount = (code) => (code.match(/\n/g) || []).length + 1;
+
+// === COMPONENTS ===
+
+function Divider() {
+    return <div style={{ height: 1, background: 'var(--border)', margin: '0' }} />;
+}
+
+function CodePanel({ code, isStreaming }) {
+    const [wordWrap, setWordWrap] = useState(true);
+    const [copied, setCopied] = useState(false);
+
+    const highlighted = useCallback(() => {
+        if (!code) return '';
+        try { return hljs.highlight(code, { language: 'html', ignoreIllegals: true }).value; }
+        catch { return code.replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    }, [code]);
+
+    const copy = () => {
+        navigator.clipboard.writeText(code);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const lineCount = getLineCount(code);
+    const lines = Array.from({ length: lineCount }, (_, i) => i + 1);
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0d0d14' }}>
+            <div className="code-file-header">
+                <div className="code-file-dot" style={{ background: '#f06e6e' }} />
+                <div className="code-file-dot" style={{ background: '#f0b96e' }} />
+                <div className="code-file-dot" style={{ background: '#3ecf8e' }} />
+                <span style={{ marginLeft: 8, color: 'var(--text3)', fontFamily: 'Geist Mono' }}>index.html</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--text3)' }}>{lineCount} lines</span>
+                <button className="icon-btn" onClick={() => setWordWrap(w => !w)} title="Toggle word wrap" style={{ marginLeft: 8, width: 26, height: 26, borderRadius: 6 }}>
+                    <I.wrap />
+                </button>
+                <button className="icon-btn" onClick={copy} title="Copy" style={{ width: 26, height: 26, borderRadius: 6 }}>
+                    {copied ? <I.check /> : <I.copy />}
+                </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', display: 'flex' }}>
+                <div className="line-numbers-col">
+                    {lines.map(n => <div key={n} className="line-num">{n}</div>)}
+                </div>
+                <pre style={{ flex: 1, overflowX: wordWrap ? 'hidden' : 'auto', padding: '24px', fontFamily: "'Geist Mono'", fontSize: '13px', lineHeight: '1.7', whiteSpace: wordWrap ? 'pre-wrap' : 'pre', wordBreak: wordWrap ? 'break-all' : 'normal', margin: 0 }}>
+                    <code className="hljs" dangerouslySetInnerHTML={{ __html: highlighted() + (isStreaming ? '<span style="display:inline-block;width:2px;height:1em;background:#7c6af7;vertical-align:text-bottom;animation:pulse-dot 1s step-start infinite;margin-left:2px"></span>' : '') }} />
+                </pre>
+            </div>
+        </div>
+    );
+}
+
+function CommandPalette({ onClose, commands }) {
+    const [query, setQuery] = useState('');
+    const [selected, setSelected] = useState(0);
+    const inputRef = useRef(null);
+
+    const filtered = commands.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
+
+    const handleKey = (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelected(s => Math.min(s + 1, filtered.length - 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelected(s => Math.max(s - 1, 0));
+        } else if (e.key === 'Enter' && filtered[selected]) {
+            filtered[selected].action();
+        } else if (e.key === 'Escape') {
+            onClose();
+        }
+    };
+
+    return (
+        <div className="modal-bg" onClick={onClose}>
+            <div className="modal" style={{ width: 520, maxHeight: '70vh' }} onClick={e => e.stopPropagation()}>
+                <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <I.search />
+                    <input ref={inputRef} className="cmd-input" placeholder="Type a command..." value={query} onChange={e => { setQuery(e.target.value); setSelected(0); }} onKeyDown={handleKey} />
+                    <kbd style={{ fontSize: 11, padding: '4px 8px', background: 'var(--bg3)', borderRadius: 4, color: 'var(--text3)' }}>ESC</kbd>
+                </div>
+                <div style={{ padding: '8px', maxHeight: 400, overflowY: 'auto' }}>
+                    {filtered.length === 0 ? (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>No commands found</div>
+                    ) : filtered.map((cmd, i) => (
+                        <div key={cmd.id} className={`cmd-item ${i === selected ? 'selected' : ''}`} onClick={cmd.action} onMouseEnter={() => setSelected(i)}>
+                            <span style={{ fontSize: 16 }}>{cmd.icon}</span>
+                            <span>{cmd.name}</span>
+                            {cmd.kbd && <kbd>{cmd.kbd}</kbd>}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function TemplatesModal({ onSelect, onClose }) {
+    return (
+        <div className="modal-bg" onClick={onClose}>
+            <div className="modal" style={{ width: 580 }} onClick={e => e.stopPropagation()}>
+                <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontFamily: 'Syne', fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Templates</div>
+                    <div style={{ fontSize: 13, color: 'var(--text2)' }}>Pick a starting point — or describe anything in the prompt.</div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, padding: 24 }}>
+                    {TEMPLATES.map(t => (
+                        <button key={t.id} className="tpl-card" onClick={() => onSelect(t)}>
+                            <div style={{ fontSize: 28, marginBottom: 10 }}>{t.icon}</div>
+                            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{t.name}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>{t.desc}</div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ProjectsModal({ projects, onLoad, onDelete, onClose }) {
+    return (
+        <div className="modal-bg" onClick={onClose}>
+            <div className="modal" style={{ width: 440 }} onClick={e => e.stopPropagation()}>
+                <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontFamily: 'Syne', fontSize: 20, fontWeight: 700 }}>Saved Projects</div>
+                </div>
+                <div style={{ padding: 20, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {!projects.length ? (
+                        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text3)', fontSize: 13 }}>No saved projects yet</div>
+                    ) : projects.map(p => (
+                        <div key={p.id} className="project-item">
+                            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => onLoad(p)}>
+                                <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{new Date(p.createdAt).toLocaleDateString()}</div>
+                            </div>
+                            <button onClick={() => onDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 6, borderRadius: 6, display: 'flex' }} 
+                                onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'var(--text3)'}
+                            >
+                                <I.trash />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// === MAIN APP ===
+function App() {
+    // Settings
+    const [apiKey, setApiKey] = useState(localStorage.getItem('DotBuild_key') || '');
+    const [modelPreset, setModelPreset] = useState(localStorage.getItem('DotBuild_model') || 'anthropic/claude-3.5-sonnet');
+    const [customModel, setCustomModel] = useState(localStorage.getItem('DotBuild_custom_model') || '');
+    const [customPrompt, setCustomPrompt] = useState(localStorage.getItem('DotBuild_custom_prompt') || '');
+    const [useCustomPrompt, setUseCustomPrompt] = useState(localStorage.getItem('DotBuild_use_custom') === 'true');
+    
+    // Core
+    const [messages, setMessages] = useState([]);
+    const [prompt, setPrompt] = useState('');
+    const [generatedCode, setGeneratedCode] = useState('');
+    const [streamingCode, setStreamingCode] = useState('');
+    const [isStreaming, setIsStreaming] = useState(false);
+    
+    // References with adaptive limit
+    const [references, setReferences] = useState([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef(null);
+    
+    // UI State
+    const [error, setError] = useState('');
+    const [viewMode, setViewMode] = useState('preview');
+    const [showSettings, setShowSettings] = useState(false);
+    const [showTemplates, setShowTemplates] = useState(false);
+    const [showProjects, setShowProjects] = useState(false);
+    const [showCommand, setShowCommand] = useState(false);
+    
+    // Project
+    const [projectName, setProjectName] = useState('Untitled Project');
+    const [savedProjects, setSavedProjects] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('DotBuild_projects') || '[]'); } catch { return []; }
+    });
+    const chatEndRef = useRef(null);
+
+    // Calculate adaptive limit based on model and history
+    const historySize = messages.reduce((acc, m) => acc + m.content.length, 0);
+    const activeModel = modelPreset === 'custom' ? customModel : modelPreset;
+    const adaptiveLimit = calculateAdaptiveLimit(activeModel, historySize);
+    const usedSize = references.reduce((acc, r) => acc + (r.content?.length || 0), 0);
+    const limitPercent = Math.min((usedSize / adaptiveLimit) * 100, 100);
+    const limitColor = getLimitColor(usedSize, adaptiveLimit);
+
+    // Persist settings
+    useEffect(() => { if (apiKey) localStorage.setItem('DotBuild_key', apiKey); }, [apiKey]);
+    useEffect(() => { localStorage.setItem('DotBuild_model', modelPreset); }, [modelPreset]);
+    useEffect(() => { localStorage.setItem('DotBuild_custom_model', customModel); }, [customModel]);
+    useEffect(() => { localStorage.setItem('DotBuild_custom_prompt', customPrompt); }, [customPrompt]);
+    useEffect(() => { localStorage.setItem('DotBuild_use_custom', useCustomPrompt); }, [useCustomPrompt]);
+    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, streamingCode]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKey = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setShowCommand(true);
+            }
         };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, []);
 
-        // --- STREAMING API HANDLER ---
-        const streamWebsite = async (apiKey, model, messages, onChunk) => {
-            const systemPrompt = `
-                You are an expert frontend developer. 
-                Task: Generate or modify a single-file HTML website.
+    // Command palette actions
+    const commands = [
+        { id: 'templates', name: 'Browse Templates', icon: '🚀', action: () => { setShowTemplates(true); setShowCommand(false); }, kbd: 'T' },
+        { id: 'projects', name: 'Open Projects', icon: '📁', action: () => { setShowProjects(true); setShowCommand(false); }, kbd: 'P' },
+        { id: 'settings', name: 'Settings', icon: '⚙️', action: () => { setShowSettings(s => !s); setShowCommand(false); }, kbd: 'S' },
+        { id: 'download', name: 'Download HTML', icon: '💾', action: () => { download(); setShowCommand(false); } },
+        { id: 'export-zip', name: 'Export ZIP', icon: '📦', action: () => { exportZip(); setShowCommand(false); } },
+        { id: 'toggle-preview', name: viewMode === 'preview' ? 'Show Code' : 'Show Preview', icon: viewMode === 'preview' ? '📝' : '👁️', action: () => { setViewMode(v => v === 'preview' ? 'code' : 'preview'); setShowCommand(false); }, kbd: '⌘⇧' },
+    ];
+
+    // File upload with adaptive limit
+    const handleFileUpload = async (e) => {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+        setIsUploading(true);
+        try {
+            const newRefs = [];
+            let currentSize = usedSize;
+            
+            for (const file of files) {
+                if (currentSize >= adaptiveLimit * 0.95) {
+                    setError('Approaching file limit. Remove some attachments.');
+                    break;
+                }
                 
-                Rules:
-                1. Output ONLY valid HTML code. No markdown code blocks.
-                2. Include all CSS in <style> and JS in <script> tags.
-                3. If modifying, return the FULL updated HTML code.
-                4. Use Tailwind CSS via CDN.
-                5. If Reference Materials are provided, use their content/style to guide your design.
-            `;
+                const isImage = file.type.startsWith('image/');
+                let content;
+                
+                if (isImage) content = await imageToBase64(file);
+                else if (file.type === 'application/pdf') content = await extractTextFromPdf(file);
+                else content = await new Promise(res => { const r = new FileReader(); r.onload = ev => res(ev.target.result); r.readAsText(file); });
+                
+                // Truncate if needed
+                const remaining = adaptiveLimit - currentSize;
+                if (content.length > remaining) {
+                    content = content.substring(0, remaining) + '\n[...truncated...]';
+                }
+                
+                currentSize += content.length;
+                newRefs.push({ name: file.name, content, isImage, type: file.type });
+            }
+            setReferences(prev => [...prev, ...newRefs]);
+        } catch (err) {
+            setError('Failed to read file: ' + err.message);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
-            const apiMessages = [
-                { role: "system", content: systemPrompt },
-                ...messages
-            ];
+    // Send message
+    const handleSend = async () => {
+        if (!apiKey) return setError('Enter your API key in settings');
+        if (!prompt.trim() && !references.length) return;
+        setError('');
+        setIsStreaming(true);
+        setViewMode('preview');
 
-            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "HTTP-Referer": window.location.href,
-                    "X-Title": "AI Website Builder",
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: apiMessages,
-                    stream: true 
-                })
+        const systemPrompt = useCustomPrompt && customPrompt.trim() ? customPrompt : DEFAULT_SYSTEM_PROMPT;
+
+        let combinedContent = prompt;
+        if (references.length) {
+            combinedContent += '\n\n=== REFERENCES ===\n';
+            references.forEach(ref => {
+                combinedContent += `\n--- ${ref.name} ---\n${ref.content.substring(0, ref.isImage ? 200 : 5000)}\n`;
             });
+        }
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error?.message || "Failed to call API");
-            }
+        const newHistory = [...messages, { role: 'user', content: combinedContent }];
+        const uiHistory = [...messages, { role: 'user', content: prompt + (references.length ? ` [+${references.length}]` : '') }];
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-            
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                const chunk = decoder.decode(value);
-                const lines = chunk.split("\n");
-                
-                for (const line of lines) {
-                    if (line.startsWith("data: ")) {
-                        const jsonStr = line.slice(6);
-                        if (jsonStr === "[DONE]") return;
-                        try {
-                            const json = JSON.parse(jsonStr);
-                            const content = json.choices[0]?.delta?.content || "";
-                            if (content) onChunk(content);
-                        } catch (e) {}
-                    }
-                }
-            }
-        };
+        setMessages(uiHistory);
+        setPrompt('');
+        setReferences([]);
 
-        // --- MAIN APP ---
-        function App() {
-            // Setup
-            const [apiKey, setApiKey] = useState(localStorage.getItem('openrouter_key') || '');
-            const [modelPreset, setModelPreset] = useState('anthropic/claude-3.5-sonnet');
-            const [customModel, setCustomModel] = useState('');
-            
-            // Core Logic
-            const [messages, setMessages] = useState([]); 
-            const [prompt, setPrompt] = useState(''); 
-            const [generatedCode, setGeneratedCode] = useState('');
-            const [streamingCode, setStreamingCode] = useState(''); 
-            const [isStreaming, setIsStreaming] = useState(false);
-            
-            // References
-            const [references, setReferences] = useState([]); // Array of { name, content }
-            const [isUploading, setIsUploading] = useState(false);
-            const fileInputRef = useRef(null);
+        let fullResponse = '';
+        setStreamingCode('');
 
-            // UI State
-            const [error, setError] = useState('');
-            const [viewMode, setViewMode] = useState('preview');
-            const [copied, setCopied] = useState(false);
-            const chatEndRef = useRef(null);
+        try {
+            await streamWebsite(apiKey, activeModel, newHistory, (chunk) => {
+                fullResponse += chunk;
+                setStreamingCode(fullResponse.replace(/```html\n?/g, '').replace(/```\n?/g, ''));
+            }, systemPrompt);
+            const final = fullResponse.replace(/```html\n?/g, '').replace(/```\n?/g, '');
+            setGeneratedCode(final);
+            setMessages(prev => [...prev, { role: 'assistant', content: final }]);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsStreaming(false);
+        }
+    };
 
-            useEffect(() => {
-                if(apiKey) localStorage.setItem('openrouter_key', apiKey);
-            }, [apiKey]);
+    // Project functions
+    const saveProject = () => {
+        const p = { id: Date.now(), name: projectName, code: generatedCode, messages, createdAt: new Date().toISOString() };
+        const updated = [p, ...savedProjects.filter(x => x.name !== projectName)];
+        setSavedProjects(updated);
+        localStorage.setItem('DotBuild_projects', JSON.stringify(updated));
+    };
 
-            useEffect(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }, [messages, isUploading]);
+    const loadProject = (p) => {
+        setProjectName(p.name);
+        setGeneratedCode(p.code);
+        setMessages(p.messages || []);
+        setShowProjects(false);
+    };
 
-            // --- FILE UPLOAD HANDLER ---
-            const handleFileUpload = async (e) => {
-                const files = Array.from(e.target.files);
-                if (files.length === 0) return;
+    const deleteProject = (id) => {
+        const updated = savedProjects.filter(p => p.id !== id);
+        setSavedProjects(updated);
+        localStorage.setItem('DotBuild_projects', JSON.stringify(updated));
+    };
 
-                setIsUploading(true);
-                setError('');
+    const download = () => {
+        const blob = new Blob([generatedCode], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${projectName.toLowerCase().replace(/\s+/g, '-')}.html`;
+        a.click();
+    };
 
-                try {
-                    const newRefs = [];
-                    for (const file of files) {
-                        let text = "";
-                        
-                        if (file.type === "application/pdf") {
-                            text = await extractTextFromPdf(file);
-                        } else if (file.type.startsWith("text/") || file.name.endsWith(".js") || file.name.endsWith(".json") || file.name.endsWith(".md")) {
-                            text = await new Promise((resolve) => {
-                                const reader = new FileReader();
-                                reader.onload = (ev) => resolve(ev.target.result);
-                                reader.readAsText(file);
-                            });
-                        } else {
-                            // Try reading as text anyway for code files without mime types
-                            text = await new Promise((resolve) => {
-                                const reader = new FileReader();
-                                reader.onload = (ev) => resolve(ev.target.result);
-                                reader.readAsText(file);
-                            });
-                        }
+    const exportZip = async () => {
+        const zip = new JSZip();
+        const slug = projectName.toLowerCase().replace(/\s+/g, '-');
+        zip.file(`${slug}.html`, generatedCode);
+        zip.file('README.md', `# ${projectName}\nGenerated by DotBuild AI\n${new Date().toLocaleDateString()}`);
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${slug}.zip`;
+        a.click();
+    };
 
-                        // Truncate overly large files to save tokens (approx 20k chars)
-                        if (text.length > 20000) {
-                            text = text.substring(0, 20000) + "\n\n[...File Truncated...]";
-                        }
+    const displayCode = isStreaming ? streamingCode : generatedCode;
 
-                        newRefs.push({ name: file.name, content: text });
-                    }
-                    setReferences(prev => [...prev, ...newRefs]);
-                } catch (err) {
-                    setError("Failed to read file: " + err.message);
-                } finally {
-                    setIsUploading(false);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                }
-            };
-
-            const removeReference = (index) => {
-                setReferences(prev => prev.filter((_, i) => i !== index));
-            };
-
-            const handleSend = async () => {
-                if (!apiKey) return setError('Please enter API Key.');
-                if (!prompt) return;
-
-                const finalModel = modelPreset === 'custom' ? customModel : modelPreset;
-                if (!finalModel) return setError('Invalid model.');
-
-                setError('');
-                setIsStreaming(true);
-                setViewMode('preview');
-                
-                // Construct the full prompt including references
-                let combinedContent = prompt;
-                if (references.length > 0) {
-                    combinedContent += "\n\n=== REFERENCE MATERIALS ===\n";
-                    references.forEach(ref => {
-                        combinedContent += `\n--- File: ${ref.name} ---\n${ref.content}\n--- End File ---\n`;
-                    });
-                    combinedContent += "\n=== END REFERENCES ===\nUse these references to guide the structure/content.";
-                }
-
-                const newHistory = [...messages, { role: "user", content: combinedContent }];
-                
-                // We show the clean prompt in UI, but send the combined one to AI
-                const uiHistory = [...messages, { role: "user", content: prompt + (references.length ? ` (Attached ${references.length} files)` : "") }];
-                
-                setMessages(uiHistory);
-                setPrompt(''); 
-                setReferences([]); // Clear refs after sending? Or keep them? Let's clear to avoid token bloat on next turn.
-
-                let fullResponse = "";
-                setStreamingCode(""); 
-
-                try {
-                    if (generatedCode) setViewMode('code');
-
-                    await streamWebsite(apiKey, finalModel, newHistory, (chunk) => {
-                        fullResponse += chunk;
-                        const cleanChunk = fullResponse.replace(/```html/g, "").replace(/```/g, "");
-                        setStreamingCode(cleanChunk);
-                    });
-
-                    let finalCode = fullResponse.replace(/```html/g, "").replace(/```/g, "");
-                    setGeneratedCode(finalCode);
-                    setMessages(prev => [...prev, { role: "assistant", content: finalCode }]);
-
-                } catch (err) {
-                    setError(err.message);
-                } finally {
-                    setIsStreaming(false);
-                    setViewMode('preview');
-                }
-            };
-
-            // Helpers
-            const copyToClipboard = () => {
-                navigator.clipboard.writeText(generatedCode);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            };
-
-            const downloadCode = () => {
-                const blob = new Blob([generatedCode], { type: 'text/html' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = 'website.html';
-                a.click();
-            };
-
-            const handleKeyPress = (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                }
-            };
-
-            return (
-                <div className="min-h-screen flex flex-col md:flex-row font-sans text-slate-100">
-                    
-                    {/* --- LEFT PANEL --- */}
-                    <div className="w-full md:w-1/3 border-r border-slate-700 bg-slate-900 h-screen flex flex-col">
-                        
-                        {/* Header & Settings */}
-                        <div className="p-4 border-b border-slate-800 bg-slate-900 shrink-0 z-10">
-                            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-3">
-                                AI Web Builder
-                            </h1>
-                            <div className="flex flex-col gap-3">
-                                <input 
-                                    type="password" placeholder="OpenRouter Key"
-                                    className="bg-slate-800 border border-slate-700 rounded px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 outline-none w-full"
-                                    value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-                                />
-                                <div className="flex gap-2">
-                                    <select 
-                                        className="bg-slate-800 border border-slate-700 rounded px-2 py-2 text-xs flex-grow outline-none"
-                                        value={modelPreset} onChange={(e) => setModelPreset(e.target.value)}
-                                    >
-                                        <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
-                                        <option value="openai/gpt-4o">GPT-4o</option>
-                                        <option value="google/gemini-pro-1.5">Gemini Pro 1.5</option>
-                                        <option value="custom">Custom Model...</option>
-                                    </select>
-                                    {modelPreset === 'custom' && (
-                                        <input placeholder="Model ID" className="bg-slate-800 border border-slate-700 rounded px-2 text-xs w-24"
-                                            value={customModel} onChange={(e) => setCustomModel(e.target.value)}
-                                        />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Chat History */}
-                        <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                            {messages.length === 0 && <div className="text-center text-slate-500 mt-10 text-sm">Upload a reference or describe your idea.</div>}
-                            
-                            {messages.map((msg, idx) => (
-                                <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                    <div className={`px-4 py-2 rounded-lg max-w-[90%] text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
-                                        {msg.role === 'user' ? msg.content : <span className="italic flex items-center gap-1"><IconCheck size={12}/> Code Generated</span>}
-                                    </div>
-                                </div>
-                            ))}
-                            {isStreaming && (
-                                <div className="flex items-start">
-                                    <div className="bg-slate-800 border border-slate-700 px-4 py-2 rounded-lg text-sm text-blue-400 flex items-center gap-2">
-                                        <IconLoader className="animate-spin" size={14} /> Writing code...
-                                    </div>
-                                </div>
-                            )}
-                            {error && <div className="bg-red-900/30 border border-red-800 text-red-200 p-3 rounded text-xs">Error: {error}</div>}
-                            <div ref={chatEndRef} />
-                        </div>
-
-                        {/* References Section */}
-                        {references.length > 0 && (
-                            <div className="px-4 py-2 border-t border-slate-800 bg-slate-900/50">
-                                <p className="text-xs text-slate-400 font-semibold mb-2 uppercase">Attached References</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {references.map((ref, idx) => (
-                                        <div key={idx} className="bg-slate-700 text-xs px-2 py-1 rounded flex items-center gap-2 text-slate-200 group">
-                                            <IconFileText />
-                                            <span className="max-w-[100px] truncate">{ref.name}</span>
-                                            <button onClick={() => removeReference(idx)} className="hover:text-red-400"><IconX size={10} /></button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Input Area */}
-                        <div className="p-4 border-t border-slate-800 bg-slate-900">
-                            <div className="relative">
-                                <textarea 
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-10 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white resize-none"
-                                    placeholder="Describe website or changes..."
-                                    rows="3"
-                                    value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                    onKeyDown={handleKeyPress}
-                                />
-                                
-                                <div className="absolute bottom-2 left-2">
-                                    <input 
-                                        type="file" 
-                                        multiple 
-                                        ref={fileInputRef}
-                                        className="hidden" 
-                                        onChange={handleFileUpload}
-                                        accept=".txt,.md,.js,.py,.html,.css,.json,.pdf"
-                                    />
-                                    <button 
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="p-1.5 text-slate-400 hover:text-white transition rounded hover:bg-slate-700"
-                                        title="Attach file (PDF, Text, Code)"
-                                    >
-                                        {isUploading ? <IconLoader className="animate-spin" size={16}/> : <IconPaperclip size={16} />}
-                                    </button>
-                                </div>
-
-                                <button 
-                                    onClick={handleSend}
-                                    disabled={isStreaming || (!prompt && references.length === 0)}
-                                    className="absolute bottom-2 right-2 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md disabled:opacity-50 transition"
-                                >
-                                    {isStreaming ? <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div> : <IconSend size={16} />}
-                                </button>
-                            </div>
+    return (
+        <div className="app-container">
+            {/* === SIDEBAR === */}
+            <div className="sidebar">
+                {/* Header */}
+                <div style={{ padding: '16px 16px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div className="brand-icon"><I.logo /></div>
+                        <div>
+                            <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>DotBuild</div>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>AI Web Builder</div>
                         </div>
                     </div>
-
-                    {/* --- RIGHT PANEL --- */}
-                    <div className="w-full md:w-2/3 bg-slate-950 flex flex-col h-screen relative">
-                        <div className="h-14 border-b border-slate-800 flex items-center justify-between px-4 bg-slate-900 shrink-0">
-                            <div className="flex bg-slate-800 rounded p-1">
-                                <button onClick={() => setViewMode('preview')} className={`px-3 py-1 rounded text-xs font-medium flex gap-2 ${viewMode === 'preview' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-                                    <IconEye size={14} /> Preview
-                                </button>
-                                <button onClick={() => setViewMode('code')} className={`px-3 py-1 rounded text-xs font-medium flex gap-2 ${viewMode === 'code' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-                                    <IconCode size={14} /> Code
-                                </button>
-                            </div>
-                            <div className="flex gap-2">
-                                {(generatedCode || streamingCode) && (
-                                    <>
-                                        <button onClick={copyToClipboard} className="px-3 py-1 rounded text-xs font-medium flex gap-2 bg-slate-700 text-white hover:bg-slate-600 border border-slate-600">
-                                            {copied ? <IconCheck size={14} /> : <IconCopy size={14} />} {copied ? "Copied" : "Copy"}
-                                        </button>
-                                        <button onClick={downloadCode} className="px-3 py-1 rounded text-xs font-medium flex gap-2 bg-green-700 text-white hover:bg-green-600 border border-green-600">
-                                            <IconDownload size={14} /> Save HTML
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex-grow relative overflow-hidden">
-                            {!generatedCode && !streamingCode && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-700 select-none">
-                                    <IconLayout />
-                                    <p className="mt-4 text-sm font-medium">Preview area</p>
-                                </div>
-                            )}
-                            <div className={`w-full h-full ${viewMode === 'preview' ? 'block' : 'hidden'}`}>
-                                {(generatedCode || streamingCode) && (
-                                    <iframe srcDoc={isStreaming ? streamingCode : generatedCode} title="Preview" className="w-full h-full bg-white border-none" sandbox="allow-scripts allow-modals allow-forms allow-popups" />
-                                )}
-                            </div>
-                            <div className={`w-full h-full bg-[#0d1117] overflow-auto ${viewMode === 'code' ? 'block' : 'hidden'}`}>
-                                <pre className="p-4 text-xs font-mono leading-relaxed"><code className="text-green-400 block whitespace-pre-wrap">{isStreaming ? <>{streamingCode}<span className="typing-cursor inline-block w-2 h-4 bg-green-400 ml-1 align-middle"></span></> : generatedCode}</code></pre>
-                            </div>
-                        </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="icon-btn" onClick={() => setShowCommand(true)} title="Command Palette (⌘K)"><I.cmd /></button>
+                        <button className="icon-btn" onClick={() => setShowTemplates(true)} title="Templates"><I.grid /></button>
+                        <button className="icon-btn" onClick={() => setShowProjects(true)} title="Projects"><I.folder /></button>
+                        <button className="icon-btn" onClick={() => setShowSettings(s => !s)} title="Settings" style={showSettings ? { background: 'rgba(124,106,247,0.15)', borderColor: 'rgba(124,106,247,0.35)', color: 'var(--accent2)' } : {}}>
+                            <I.settings />
+                        </button>
                     </div>
                 </div>
-            );
-        }
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+
+                <Divider />
+
+                {/* Settings */}
+                {showSettings && (
+                    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg)' }}>
+                        <div className="settings-row">
+                            <label>API Key (OpenRouter)</label>
+                            <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-or-..." />
+                        </div>
+                        <div className="settings-row">
+                            <label>Model</label>
+                            <select value={modelPreset} onChange={e => setModelPreset(e.target.value)}>
+                                {Object.entries(MODEL_LIMITS).map(([k, v]) => <option key={k} value={k}>{v.name} {k !== 'custom' && `(~${Math.round(v.context/1000)}k)`}</option>)}
+                            </select>
+                        </div>
+                        {modelPreset === 'custom' && (
+                            <div className="settings-row">
+                                <label>Custom Model ID</label>
+                                <input 
+                                    type="text" 
+                                    value={customModel} 
+                                    onChange={e => setCustomModel(e.target.value)} 
+                                    placeholder="e.g., openai/gpt-4, meta-llama/llama-3.1-70b" 
+                                />
+                            </div>
+                        )}
+                        <div className="settings-row">
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                                <input type="checkbox" checked={useCustomPrompt} onChange={e => setUseCustomPrompt(e.target.checked)} />
+                                Custom System Prompt
+                            </label>
+                        </div>
+                        {useCustomPrompt && (
+                            <textarea 
+                                value={customPrompt} 
+                                onChange={e => setCustomPrompt(e.target.value)}
+                                placeholder="You are an elite frontend developer..."
+                                rows={4}
+                                style={{ resize: 'vertical', fontSize: 12 }}
+                            />
+                        )}
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                            Context limit: ~{Math.round(adaptiveLimit/1000)}k chars
+                        </div>
+                        <Divider />
+                    </div>
+                )}
+
+                {/* Project row */}
+                <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                        value={projectName}
+                        onChange={e => setProjectName(e.target.value)}
+                        style={{ flex: 1, borderRadius: 8, padding: '7px 10px', fontSize: 13, fontWeight: 500 }}
+                        placeholder="Project name"
+                    />
+                    <button className="act-btn" onClick={saveProject} style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        <I.save /> Save
+                    </button>
+                </div>
+
+                <Divider />
+
+                {/* Chat */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {!messages.length && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, textAlign: 'center' }}>
+                            <I.stars />
+                            <div style={{ fontSize: 14, color: 'var(--text2)', maxWidth: 200, lineHeight: 1.6 }}>Describe the site you want to build</div>
+                            <button className="empty-badge" onClick={() => setShowTemplates(true)}><I.grid /> Browse templates</button>
+                        </div>
+                    )}
+
+                    {messages.map((msg, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                            {msg.role === 'user' ? (
+                                <div className="bubble-user">{msg.content}</div>
+                            ) : (
+                                <div className="bubble-ai"><span style={{ fontSize: 16 }}>✓</span><span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>Code generated</span></div>
+                            )}
+                        </div>
+                    ))}
+
+                    {isStreaming && (
+                        <div style={{ display: 'flex' }}>
+                            <div className="bubble-ai" style={{ gap: 8 }}>
+                                <div className="status-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
+                                <span style={{ fontSize: 13, color: 'var(--text2)' }}>Generating…</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', borderRadius: 10, background: 'rgba(240,110,110,0.08)', border: '1px solid rgba(240,110,110,0.2)', color: 'var(--red)', fontSize: 13 }}>
+                            <I.alert /> {error}
+                        </div>
+                    )}
+
+                    <div ref={chatEndRef} />
+                </div>
+
+                {/* Attachments + Limit bar */}
+                {references.length > 0 && (
+                    <>
+                        <Divider />
+                        <div style={{ padding: '10px 16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <span style={{ fontSize: 11, color: 'var(--text3)' }}>ATTACHMENTS</span>
+                                <span style={{ fontSize: 11, color: limitColor }}>{Math.round(usedSize/1000)}k / {Math.round(adaptiveLimit/1000)}k</span>
+                            </div>
+                            <div className="limit-bar">
+                                <div className="limit-bar-fill" style={{ width: `${limitPercent}%`, background: limitColor }} />
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                                {references.map((ref, i) => (
+                                    <div key={i} className="chip">
+                                        {ref.isImage ? <I.img /> : <I.file />}
+                                        <span style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ref.name}</span>
+                                        <button onClick={() => setReferences(prev => prev.filter((_, j) => j !== i))}><I.x /></button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                <Divider />
+
+                {/* Input */}
+                <div style={{ padding: '12px 12px 14px' }}>
+                    {!apiKey && (
+                        <div style={{ marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(240,185,110,0.08)', border: '1px solid rgba(240,185,110,0.2)', color: 'var(--amber)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <I.alert /> Add API key in settings to generate
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '8px 8px 8px 12px', transition: 'border-color 0.15s', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+                        <textarea
+                            value={prompt}
+                            onChange={e => setPrompt(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
+                            placeholder="Describe your website…"
+                            rows={2}
+                            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, lineHeight: 1.6, color: 'var(--text)', maxHeight: 120, boxShadow: 'none' }}
+                        />
+                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            <input type="file" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} accept=".txt,.md,.js,.py,.html,.css,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp" />
+                            <button onClick={() => fileInputRef.current?.click()} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border2)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text3)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                            >
+                                {isUploading ? <I.spin /> : <I.attach />}
+                            </button>
+                            <button className="send-btn" onClick={handleSend} disabled={isStreaming || (!prompt.trim() && !references.length)}>
+                                {isStreaming ? <I.spin /> : <I.send />}
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', paddingLeft: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>Enter to send · ⌘K for commands</span>
+                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>{modelPreset === 'custom' ? (customModel || 'Custom') : MODEL_LIMITS[modelPreset]?.name.split(' ').slice(-2).join(' ') || modelPreset}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* === RIGHT PANEL === */}
+            <div className="right-panel">
+                {/* Toolbar */}
+                <div style={{ height: 52, padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg1)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', gap: 2, padding: '4px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                        <button className={`tab-pill ${viewMode === 'preview' ? 'active' : ''}`} onClick={() => setViewMode('preview')}><I.eye /> Preview</button>
+                        <button className={`tab-pill ${viewMode === 'code' ? 'active' : ''}`} onClick={() => setViewMode('code')}><I.code /> Code</button>
+                    </div>
+                    {viewMode === 'preview' && displayCode && <div className="preview-url-bar">localhost:3000</div>}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {displayCode && (
+                            <>
+                                <button className="act-btn green" onClick={download}><I.dl /> Download</button>
+                                <button className="act-btn purple" onClick={exportZip}><I.zip /> Export ZIP</button>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: viewMode === 'preview' ? '#f0f0f0' : '#0d0d14' }}>
+                    {!displayCode && (
+                        <div className="empty-canvas">
+                            <div className="empty-grid" />
+                            <I.layout />
+                            <div style={{ fontSize: 14, color: 'var(--text3)', zIndex: 1 }}>Your preview will appear here</div>
+                            <button className="empty-badge" onClick={() => setShowTemplates(true)} style={{ zIndex: 1 }}><I.grid /> Start with a template</button>
+                        </div>
+                    )}
+
+                    {viewMode === 'preview' && displayCode && (
+                        <iframe srcDoc={displayCode} title="Preview" style={{ width: '100%', height: '100%', border: 'none' }} sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin" />
+                    )}
+
+                    {viewMode === 'code' && displayCode && (
+                        <div style={{ height: '100%', overflow: 'hidden' }}>
+                            <CodePanel code={displayCode} isStreaming={isStreaming} />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Modals */}
+            {showCommand && <CommandPalette onClose={() => setShowCommand(false)} commands={commands} />}
+            {showTemplates && <TemplatesModal onSelect={t => { setPrompt(t.prompt); setGeneratedCode(''); setMessages([]); setShowTemplates(false); }} onClose={() => setShowTemplates(false)} />}
+            {showProjects && <ProjectsModal projects={savedProjects} onLoad={loadProject} onDelete={deleteProject} onClose={() => setShowProjects(false)} />}
+        </div>
+    );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
 </body>
 </html>
